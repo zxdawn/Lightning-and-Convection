@@ -1,4 +1,4 @@
-# BEHR_OMINO2 Guide for no_Berkeley
+# BEHR_OMINO2 Guide for non_Berkeley
 
 ## Clone [BEHR_Core](https://github.com/CohenBerkeleyLab/BEHR-core.git) and other repositories
 
@@ -69,12 +69,14 @@ https://github.com/CohenBerkeleyLab/OtherSatelliteUtils/blob/master/OMI%20Utils/
 
 Modify sortscript.sh:
 
-    For OMNO2:
-        36     y=${fname:18:4}
-        37     m=${fname:23:2}
-    For OMPIXCOR:
-        36     y=${fname:21:4}
-        37     m=${fname:26:2}
+```
+For OMNO2:
+    36     y=${fname:18:4}
+    37     m=${fname:23:2}
+For OMPIXCOR:
+    36     y=${fname:21:4}
+    37     m=${fname:26:2}
+```
 
 ### Structure example of data files:
 
