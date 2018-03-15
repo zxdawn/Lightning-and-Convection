@@ -37,6 +37,7 @@ If you don't have permission to change Matlab path, you should add BEHR to Matla
 2. **behr_mat_dir** should have subdirectories for each region to be produced and within each region directories "daily" and "monthly".
 3. **myd06_dir** should contain folders for each year with MYD06_L2 files in them.
 4. **mcd43d_dir** should contain folders for each year with MCD43D* files in them.
+5.  **wrf_profiles** it assumes that WRF files are organized in a directory structure behr_paths.wrf_profiles/<region>/<yyyy>/<mm> where <region> is the region being retrieved (passed as the "region" input), <yyyy> is the four-digit year and <mm> is the two-digit month. If you specify wrf_output_path explicitly, then it assumes all WRF output files are in that directory.
 
 ## Download data
 
@@ -113,10 +114,14 @@ For OMPIXCOR:
 ## Read data
 
 1. Set date_start, date_end, region and DEBUG_LEVEL in `*/BEHR/BEHR-core/Read_Data/read_main.m`;
-2. Run `read_main` in Matlab;
+2. Run `read_main.m`
 3. Check SP_Files.
 
 ## Recalculate AMF and Tropospheric Column
+
+1. Initialize parameters of BEHR_main.m
+2. [Set python environment](https://github.com/zxdawn/BEHR-PSM-Gridding) for BEHR-PSM-Gridding
+3. Run `BEHR_main.m`
 
 ## Reference
 
