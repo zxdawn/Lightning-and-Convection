@@ -8,6 +8,7 @@
 # ----------------------------------------------------------- #
 
 import h5py
+import string
 import pyresample
 import matplotlib
 import numpy as np
@@ -317,6 +318,13 @@ for ax in axes.flat:
   ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
   ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
 
+# Set number
+from matplotlib.offsetbox import AnchoredText
+numbers = string.ascii_lowercase[0:int(len(poly_assemble))]
+numbers = [x for pair in zip(numbers,numbers) for x in pair]
+for i,ax in enumerate(axes.flat):
+  anchored_text = AnchoredText(numbers[i], loc=2)
+  ax.add_artist(anchored_text)
 
 # Set title and ylables
 cols = ['IASI_Profile','WRF-Chem Profile']*2

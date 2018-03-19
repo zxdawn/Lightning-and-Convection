@@ -55,6 +55,12 @@ def drawmap(ax):
 
     return m
 
+def add_number(poly_assemble):
+    id = 0
+    for p in poly_assemble:
+        axes.text(p.centroid.x,p.centroid.y,string.ascii_lowercase[id],fontweight='bold')
+        id = id +1
+
 def read(file,column):
     f = h5py.File (file,'r')
     lat    = f[lat_str][:]
@@ -129,5 +135,6 @@ fig.subplots_adjust(wspace=0.1, hspace=0.25)
 drawmap(axes)
 poly_assemble = []
 read(file_place1,0)
+add_number(poly_assemble)
 
 plt.savefig(saveplace+savename,bbox_inches = 'tight')
