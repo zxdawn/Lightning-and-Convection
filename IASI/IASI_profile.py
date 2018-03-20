@@ -2,9 +2,10 @@
 # 1. Interplate wrfout* to pressure levels of IASI;
 # 2. Regrid wrfout* to higher resolution;
 # 3. Filter data (circles) in Polygon;
-# 4. Average wrf_data (grids) in circles; 
-# 4. Complement latitude filtered out by IASI;
-# 5. Draw profile;
+# 4. Average wrf_data (grids) in circles;
+# 5. Filter fill_value of Cx and Cross-boundary levels of WRF-Chem
+# 6. Complement latitude filtered out by IASI;
+# 7. Draw profile;
 # ----------------------------------------------------------- #
 
 import h5py
@@ -84,7 +85,7 @@ fill_value = IASI['HDFEOS/SWATHS/O3/Data Fields/O3 Retrieval Error Covariance'].
 # The retrieval error covariance matrix
 Cx1 = IASI['HDFEOS/SWATHS/O3/Data Fields/O3 Retrieval Error Covariance'][:]
 # The a priori covariance matrix
-Ca2 = IASI['HDFEOS/SWATHS/O3/Data Fields/O3 Apriori Error Covariance'][:]
+Ca1 = IASI['HDFEOS/SWATHS/O3/Data Fields/O3 Apriori Error Covariance'][:]
 # Retrieval O3 profile
 O3 = IASI['HDFEOS/SWATHS/O3/Data Fields/Ozone'][:]
 # a priori profile
@@ -108,15 +109,7 @@ mask = (lon > Lon_min) & (lon < Lon_max) & (lat > Lat_min) & (lat < Lat_max)
 lon_mask = lon[mask]; lat_mask = lat[mask]
 O3_mask = O3[:,mask]
 Cx1 = Cx1[:,mask]
-
 Xa = Xa[:,mask]
-
-# Calculate averaging kernel (A = I - Cx*Ca^-1)
-d = plevel.shape[0]
-Ca1 = np.zeros((d,d))
-inds = np.tril_indices_from(Ca1)
-Ca1[inds] = Ca2
-Ca1[(inds[1], inds[0])] = Ca2
 
 # Set the resolution and range of target grid
 lon_new = np.arange(Lon_min,Lon_max,resolution)
@@ -125,8 +118,6 @@ lon2d, lat2d = np.meshgrid(lon_new,lat_new)
 
 orig_def = pyresample.geometry.SwathDefinition(lons=lon_curv, lats=lat_curv)
 targ_def = pyresample.geometry.SwathDefinition(lons=lon2d, lats=lat2d)
-# print (Lon_min,Lon_max,Lat_min,Lat_max)
-# print (lon_curv.shape,lat_curv.shape,lat_new.shape)
 
 # interplate to pressure level and regrid to resolution
 o3_p = np.zeros((43,lat_curv.shape[0],lon_curv.shape[1]))
@@ -166,25 +157,44 @@ for id_circle,coordinate in enumerate(listCircle):
       index.append(id)
 
   # average of O3 profile in each circle
+  d = plevel.shape[0]
   for l in np.arange(d):
     o3_mean[l,id_circle] = np.nanmean(o3_nearest[l][mask][index])
+  # filter nan of WRF-Chem
   nonan_wrf_index = np.argwhere(~(np.isnan(o3_mean[:,id_circle]))).ravel()
   start = nonan_wrf_index[0]
   end   = nonan_wrf_index[-1]
 
-  # A = I - Cx*Ca^-1
-  Cx = np.zeros((43,43))
+  # Calculate averaging kernel (A = I - Cx*Ca^-1)
+  Ca = np.zeros((d,d))
+  inds = np.tril_indices_from(Ca)
+  Ca[inds] = Ca1
+  Ca[(inds[1], inds[0])] = Ca1
+
+  Cx = np.zeros((d,d))
   inds = np.tril_indices_from(Cx)
   Cx[inds] = Cx1[:,id_circle]
   Cx[(inds[1], inds[0])] = Cx1[:,id_circle]
   Cx = Cx[start:end+1,start:end+1]
-  Ca = Ca1[start:end+1,start:end+1]
+  Ca = Ca[start:end+1,start:end+1]
 
-  I = np.identity(nonan_wrf_index.shape[0])
-  A = I - Cx.dot(inv(Ca))
-  # print (A.shape,o3_mean[start:end+1,id_circle].shape,Xa[start:end+1,id_circle].shape,I.shape)
-  O3_comp[start:end+1,id_circle] = A.dot(o3_mean[start:end+1,id_circle])\
-  +(I-A).dot(Xa[start:end+1,id_circle])
+  # filter fill_value=-999.0
+  if np.where(Cx[0] == -999.0)[0].size:
+    nan_iasi_index = np.where(Cx[0] == -999.0)[0][0]
+    Cx = Cx[0:nan_iasi_index,0:nan_iasi_index]
+    Ca = Ca[0:nan_iasi_index,0:nan_iasi_index]
+    print (Cx.shape,Ca.shape,nan_iasi_index)
+    I = np.identity(nan_iasi_index)
+    A = I - Cx.dot(inv(Ca))
+    # print (A.shape,o3_mean[start:end+1,id_circle].shape,Xa[start:end+1,id_circle].shape,I.shape)
+    O3_comp[start:end+1,id_circle][0:nan_iasi_index] = A.dot(o3_mean[start:end+1,id_circle][0:nan_iasi_index])\
+    +(I-A).dot(Xa[start:end+1,id_circle][0:nan_iasi_index])
+
+  else:
+    I = np.identity(nonan_wrf_index.shape[0])
+    A = I - Cx.dot(inv(Ca))
+    O3_comp[start:end+1,id_circle] = A.dot(o3_mean[start:end+1,id_circle])\
+    +(I-A).dot(Xa[start:end+1,id_circle])
 
 # Set assemble of poly
 p = poly_1
