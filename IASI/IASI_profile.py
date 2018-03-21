@@ -13,6 +13,7 @@ import string
 import pyresample
 import matplotlib
 import numpy as np
+import numpy.ma as ma
 from netCDF4 import Dataset
 from numpy.linalg import inv
 from pyresample import bilinear
@@ -183,7 +184,7 @@ for id_circle,coordinate in enumerate(listCircle):
     nan_iasi_index = np.where(Cx[0] == -999.0)[0][0]
     Cx = Cx[0:nan_iasi_index,0:nan_iasi_index]
     Ca = Ca[0:nan_iasi_index,0:nan_iasi_index]
-    print (Cx.shape,Ca.shape,nan_iasi_index)
+    # print (Cx.shape,Ca.shape,nan_iasi_index)
     I = np.identity(nan_iasi_index)
     A = I - Cx.dot(inv(Ca))
     # print (A.shape,o3_mean[start:end+1,id_circle].shape,Xa[start:end+1,id_circle].shape,I.shape)
@@ -250,8 +251,7 @@ for poly in poly_assemble:
     lat = lat[order]; lon = lon[order]
     O3_IASI = O3_IASI[:,order]; O3_chem = O3_chem[:,order]
 
-    print (O3_chem.shape,O3_IASI.shape)
-    print ('Original lat in Polygon: ',lat)
+    print ('['+str(cycles_id+1)+'] ','Original lat in Polygon: ','\n',lat)
 
     # Calculate difference to check bad points and id
     v = abs(np.diff(lat))
@@ -296,12 +296,16 @@ for poly in poly_assemble:
                 lat  = np.insert(lat,  insert_position, add_points[int(value_position+k)])
                 insert_position += 1
 
-    print ('Complete lat in Polygon: ',lat)
+    print ('['+str(cycles_id+1)+'] '+'Complete lat in Polygon: ','\n',lat)
 
-    x, y = np.meshgrid(lat,plevel[16:])
-    cycles_id = cycles_id +1
+    # Mask fill_value of O3
+    O3_IASI = ma.masked_values (O3_IASI, -999.0)
+    O3_chem = ma.masked_values (O3_chem,0)
 
     # Plot
+    x, y = np.meshgrid(lat,plevel[16:])
+    cycles_id = cycles_id +1
+    
     if cycles_id%2 == 0:
       p = axes[ax_id,2].pcolormesh(x, y, O3_IASI[16:,:]*1000,norm=norm,cmap='jet')
       p = axes[ax_id,3].pcolormesh(x, y, O3_chem[16:,:]*1000,norm=norm,cmap='jet')
@@ -322,7 +326,6 @@ for ax in axes.flat:
   ticks  = ax.get_xticks()
   ticks  = list(map(lambda x: '%.1f' % x, ticks))
   labels = [s + '°N' for s in ticks]
-  print (labels)
   ax.set_xticklabels(labels)
   ax.set_yticks(ymajor_ticks)
   ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
