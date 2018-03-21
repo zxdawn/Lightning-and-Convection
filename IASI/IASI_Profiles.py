@@ -42,39 +42,39 @@ from wrf import getvar, interplevel, to_np, get_basemap, latlon_coords
 # title_IASI,title_WRF, saveplace,savename
 # ----------------------------------------------------------- #
 species = 'CO'
-date = '2017042000'
+date    = '2017042000'
 version = '3.5'
 
 wrfout_file = '/data/home/wang/zx/model/chem3.9.1/WRFV3/\
 test/em_real/history/lightning/BEHR/hk/2017/CFSR_nogwd/\
 wrfout_d03_2017-04-19_18:00:00'
 
-IASI_file = '/data/home/wang/zx/data/IASI/GD_files/\
+IASI_file   = '/data/home/wang/zx/data/IASI/GD_files/\
 IASI-MetopA_L2_'+species+'_SOFRID-v'+version+'_'+date+'.he5'
 
-saveplace = '/data/home/wang/zx/codes/interplation/'
-savename = 'IASI_Profiles.eps'
+saveplace   = '/data/home/wang/zx/codes/interplation/'
+savename    = 'IASI_Profiles.eps'
 
 t = 8
 resolution = 0.05
-Lon_min = 109; Lon_max =118
-Lat_min = 20; Lat_max = 26
+Lon_min = 109; Lon_max = 118
+Lat_min = 20 ; Lat_max = 26
 
 # set slice
-poly_1  = np.array([[ 111.3,21.5 ],
+poly_1 = np.array([[ 111.3,21.5 ],
                 [ 112.25,  25.  ],
                 [ 112.45,  25.  ],
                 [ 111.5,   21.5 ]])
 p_max  = 115
-delta =[0.2,0.35]
+delta  = [0.2,0.35]
 
 title_IASI = 'IASI Profile'
-title_WRF = 'WRF-Chem Profile'
+title_WRF  = 'WRF-Chem Profile'
 
 # ----------------------------------------------------------- #
 
 # Get variables of wrfout*
-fc = Dataset(wrfout_file)
+fc  = Dataset(wrfout_file)
 lat = getvar(fc, 'XLAT',timeidx=8)
 lon = getvar(fc, 'XLONG',timeidx=8)
 lat_curv = to_np(lat)
@@ -85,21 +85,21 @@ co       = getvar(fc, 'co',timeidx=8)
 fc.close()
 
 # Get variables of IASI
-IASI = h5py.File (IASI_file,'r')
+IASI  = h5py.File (IASI_file,'r')
 lat   = IASI['HDFEOS/SWATHS/'+species+'/Geolocation Fields/Latitude'][:]
 lon   = IASI['HDFEOS/SWATHS/'+species+'/Geolocation Fields/Longitude'][:]
 fill_value = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Retrieval Error Covariance'].attrs['_FillValue']
 # The retrieval error covariance matrix
-Cx1 = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Retrieval Error Covariance'][:]
+Cx1   = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Retrieval Error Covariance'][:]
 # The a priori covariance matrix
-Ca1 = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Apriori Error Covariance'][:]
+Ca1   = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Apriori Error Covariance'][:]
 # a priori profile
-Xa = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Apriori'][:]
-if species == 'O3':
+Xa    = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/'+species+' Apriori'][:]
+if species   == 'O3':
   # Retrieval O3/CO profile
-  O3 = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/Ozone'][:]
+  O3  = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/Ozone'][:]
 elif species == 'CO':
-  CO = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/CO'][:]
+  CO  = IASI['HDFEOS/SWATHS/'+species+'/Data Fields/CO'][:]
 
 # Set IASI pressure levels
 plevel = np.array([1.00000000e1, 2.90000000e1, 6.90000000e1, 1.42000000e2,\
@@ -115,31 +115,30 @@ plevel = np.array([1.00000000e1, 2.90000000e1, 6.90000000e1, 1.42000000e2,\
    9.85880000e4,   1.00543000e5,   1.01325000e5])/100
 
 # limit IASI
-mask = (lon > Lon_min) & (lon < Lon_max) & (lat > Lat_min) & (lat < Lat_max)
+mask     = (lon > Lon_min) & (lon < Lon_max) & (lat > Lat_min) & (lat < Lat_max)
 lon_mask = lon[mask]; lat_mask = lat[mask]
-Cx1 = Cx1[:,mask]
-if species == 'O3':
+Cx1  = Cx1[:,mask]
+if species   == 'O3':
   O3 = O3[:,mask]
   Xa = Xa[:,mask]
 elif species == 'CO':
   CO = CO[:,mask]
 
 # Set the resolution and range of target grid
-lon_new = np.arange(Lon_min,Lon_max,resolution)
-lat_new = np.arange(Lat_min,Lat_max,resolution)
+lon_new      = np.arange(Lon_min,Lon_max,resolution)
+lat_new      = np.arange(Lat_min,Lat_max,resolution)
 lon2d, lat2d = np.meshgrid(lon_new,lat_new)
-
-orig_def = pyresample.geometry.SwathDefinition(lons=lon_curv, lats=lat_curv)
-targ_def = pyresample.geometry.SwathDefinition(lons=lon2d, lats=lat2d)
+orig_def     = pyresample.geometry.SwathDefinition(lons=lon_curv, lats=lat_curv)
+targ_def     = pyresample.geometry.SwathDefinition(lons=lon2d, lats=lat2d)
 
 # interplate to pressure level and regrid to resolution
-species_p = np.zeros((43,lat_curv.shape[0],lon_curv.shape[1]))
+species_p       = np.zeros((43,lat_curv.shape[0],lon_curv.shape[1]))
 species_nearest = np.zeros((43,lat_new.shape[0],lon_new.shape[0]))
 # o3_gauss = np.zeros((43,lat_new.shape[0],lon_new.shape[0]))
 
 l = 0
 for level in plevel:
-  if species == 'O3':
+  if species   == 'O3':
     species_p[l] = interplevel(o3, p, level)
   elif species == 'CO':
     species_p[l] = interplevel(co, p, level)
@@ -151,7 +150,7 @@ for level in plevel:
   l = l+1
 
 # get IASI pixels in WRF domain
-listCircle = np.stack((lon_mask,lat_mask), axis=-1)
+listCircle   = np.stack((lon_mask,lat_mask), axis=-1)
 species_mean = np.zeros((43,lon_mask.shape[0]))
 species_comp = np.zeros((43,lon_mask.shape[0]))
 
@@ -182,17 +181,17 @@ for id_circle,coordinate in enumerate(listCircle):
   end   = nonan_wrf_index[-1]
 
   # Calculate averaging kernel (A = I - Cx*Ca^-1)
-  Ca = np.zeros((d,d))
-  inds = np.tril_indices_from(Ca)
+  Ca       = np.zeros((d,d))
+  inds     = np.tril_indices_from(Ca)
   Ca[inds] = Ca1
   Ca[(inds[1], inds[0])] = Ca1
 
-  Cx = np.zeros((d,d))
-  inds = np.tril_indices_from(Cx)
+  Cx       = np.zeros((d,d))
+  inds     = np.tril_indices_from(Cx)
   Cx[inds] = Cx1[:,id_circle]
   Cx[(inds[1], inds[0])] = Cx1[:,id_circle]
-  Cx = Cx[start:end+1,start:end+1]
-  Ca = Ca[start:end+1,start:end+1]
+  Cx       = Cx[start:end+1,start:end+1]
+  Ca       = Ca[start:end+1,start:end+1]
 
   # filter fill_value=-999.0
   if np.where(Cx[0] == -999.0)[0].size:
@@ -200,10 +199,10 @@ for id_circle,coordinate in enumerate(listCircle):
     Cx = Cx[0:nan_iasi_index,0:nan_iasi_index]
     Ca = Ca[0:nan_iasi_index,0:nan_iasi_index]
     # print (Cx.shape,Ca.shape,nan_iasi_index)
-    I = np.identity(nan_iasi_index)
-    A = I - Cx.dot(inv(Ca))
+    I  = np.identity(nan_iasi_index)
+    A  = I - Cx.dot(inv(Ca))
     # print (A.shape,species_mean[start:end+1,id_circle].shape,Xa[start:end+1,id_circle].shape,I.shape)
-    if species == 'O3':
+    if species   == 'O3':
       species_comp[start:end+1,id_circle][0:nan_iasi_index] = A.dot(species_mean[start:end+1,id_circle][0:nan_iasi_index])\
       +(I-A).dot(Xa[start:end+1,id_circle][0:nan_iasi_index])
     elif species == 'CO':
@@ -213,7 +212,7 @@ for id_circle,coordinate in enumerate(listCircle):
   else:
     I = np.identity(nonan_wrf_index.shape[0])
     A = I - Cx.dot(inv(Ca))
-    if species == 'O3':
+    if species   == 'O3':
       species_comp[start:end+1,id_circle] = A.dot(species_mean[start:end+1,id_circle])\
       +(I-A).dot(Xa[start:end+1,id_circle])
     elif species == 'CO':
@@ -226,7 +225,7 @@ poly_assemble = []
 i = 0; k=1
 while p[0,0] < p_max:
     if i==2:
-        i=0
+      i=0
     poly = Polygon((p[0],p[1],p[2],p[3]))
     if 5 < k < 9:
         if k%2==0:
@@ -245,7 +244,7 @@ while p[0,0] < p_max:
 
 print ('Number of polys '+str(len(poly_assemble)))
 
-fig, axes  = plt.subplots(int(len(poly_assemble)/2), 4,figsize=(10,18),sharey=True)
+fig,axes = plt.subplots(int(len(poly_assemble)/2), 4,figsize=(10,18),sharey=True)
 fig.subplots_adjust(wspace=0.25, hspace=0.2)
 
 # Set axis and threshold
@@ -253,7 +252,7 @@ for ax in axes.flat:
   ax.set_yscale('log')
 plt.gca().invert_yaxis()
 
-if species == 'O3':
+if species   == 'O3':
   norm = matplotlib.colors.Normalize(vmin=20,vmax=200)
 elif species == 'CO':
   norm = matplotlib.colors.Normalize(vmin=30,vmax=300)
@@ -268,9 +267,9 @@ for poly in poly_assemble:
         index.append(id)
 
     # Get geolocations of centers
-    lat     = lat_mask[index]
-    lon     = lon_mask[index]
-    if species == 'O3':
+    lat = lat_mask[index]
+    lon = lon_mask[index]
+    if species   == 'O3':
       species_IASI = O3[:,index]
     elif species == 'CO':
       species_IASI = CO[:,index]
@@ -284,9 +283,9 @@ for poly in poly_assemble:
     print ('['+str(cycles_id+1)+'] ','Original lat in Polygon: ','\n',lat)
 
     # Calculate difference to check bad points and id
-    v = abs(np.diff(lat))
+    v   = abs(np.diff(lat))
     bad = v[np.argwhere(v>0.2)]
-    id = np.argwhere(v>0.2)
+    id  = np.argwhere(v>0.2)
 
     # Save bad points and assign null
     add_points =[]
@@ -300,17 +299,17 @@ for poly in poly_assemble:
             k = k+1
             n = average(d,k)
         add_points = np.append(add_points,np.linspace(lat[id[id_out]], lat[id[id_out]+1], num=k+1)[1:-1])
-        add_nu = np.append(add_nu,(k-1))
+        add_nu     = np.append(add_nu,(k-1))
 
     i_saved = np.array([])
     for nu,i in enumerate (id):
         if nu == 0:
             insert_position = i[0]+1
             for k in np.arange(add_nu[nu]):
-                species_IASI = np.insert(species_IASI, insert_position, np.nan, axis=1)
-                species_chem = np.insert(species_chem, insert_position, np.nan, axis=1)
-                value_position = int(np.sum(add_nu[:nu]))
-                lat  = np.insert(lat, insert_position, add_points[int(value_position+k)])
+                species_IASI    = np.insert(species_IASI, insert_position, np.nan, axis=1)
+                species_chem    = np.insert(species_chem, insert_position, np.nan, axis=1)
+                value_position  = int(np.sum(add_nu[:nu]))
+                lat             = np.insert(lat, insert_position, add_points[int(value_position+k)])
                 insert_position += 1
             i_saved = np.append(i_saved,i[0]) 
 
@@ -320,10 +319,10 @@ for poly in poly_assemble:
             insert_position += position_relative
 
             for k in np.arange(add_nu[nu]):
-                species_IASI = np.insert(species_IASI, insert_position, np.nan, axis=1)
-                species_chem = np.insert(species_chem, insert_position, np.nan, axis=1)
-                value_position = int(np.sum(add_nu[:nu]))
-                lat  = np.insert(lat,  insert_position, add_points[int(value_position+k)])
+                species_IASI    = np.insert(species_IASI, insert_position, np.nan, axis=1)
+                species_chem    = np.insert(species_chem, insert_position, np.nan, axis=1)
+                value_position  = int(np.sum(add_nu[:nu]))
+                lat             = np.insert(lat,  insert_position, add_points[int(value_position+k)])
                 insert_position += 1
 
     print ('['+str(cycles_id+1)+'] '+'Complete lat in Polygon: ','\n',lat)
@@ -347,7 +346,7 @@ for poly in poly_assemble:
     if ax_id == int(len(poly_assemble)/2)-1:
       cbar_ax = fig.add_axes([0.15, 0.07, 0.7, 0.01])
       cb = fig.colorbar(p, cax=cbar_ax,extend='both', orientation='horizontal')
-      if species == 'O3':
+      if species   == 'O3':
         cb.ax.set_xlabel('O$_3$ (ppbv)')
       elif species == 'CO':
         cb.ax.set_xlabel('CO (ppbv)')
