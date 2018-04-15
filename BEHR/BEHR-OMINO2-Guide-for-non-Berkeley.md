@@ -121,7 +121,7 @@ For OMPIXCOR:
 ## Recalculate AMF and Tropospheric Column
 
 1. Initialize parameters of BEHR_main.m
-2. [Set python environment](https://github.com/zxdawn/BEHR-PSM-Gridding) for BEHR-PSM-Gridding
+2. [Set python environment](https://github.com/zxdawn/BEHR-PSM-Gridding) for BEHR-PSM-Gridding and [compile](https://github.com/zxdawn/BEHR-PSM-Gridding/blob/develop/omi/help.txt) omi.
 3. Run `BEHR_main.m`
 
 ## Reference
