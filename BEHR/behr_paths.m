@@ -38,90 +38,91 @@ classdef behr_paths
     % straightforward path.
     
     properties(Constant=true)
+		% Export BEHR in your environment
 		% The directory of the BEHR-core repository. May be cloned from
 		% https://github.com/CohenBerkeleyLab/BEHR-core
-		behr_core = '../../../BEHR-core';
+		behr_core = strcat(getenv('BEHR'),'BEHR-core');
 
 		% The directory of the BEHR-core-utils repository. May be cloned
 		% from https://github.com/CohenBerkeleyLab/BEHR-core-utils
-		behr_utils = '../../../BEHR-core-utils';
+		behr_utils = strcat(getenv('BEHR'),'BEHR-core-utils');
 
 		% The directory of the general Matlab-Gen-Utils repository (not the
 		% BEHR-core-utils repo). May be cloned from
 		% https://github.com/CohenBerkeleyLab/Matlab-Gen-Utils
-		utils = '../../../Matlab-Gen-Utils';
+		utils = strcat(getenv('BEHR'),'Matlab-Gen-Utils');
 
 		% The AMF_tools directory in the BEHR-core-utils repository on your
 		% computer. It should contain the files damf.txt and nmcTmpYr.txt
-		amf_tools_dir = '../../../BEHR-core-utils/AMF_tools';
+		amf_tools_dir = strcat(getenv('BEHR'),'BEHR-core-utils/AMF_tools');
 
 		% The PSM Gridding repository. It should contain the files
 		% PSM_Main.py and psm_wrapper.m. May be cloned from
 		% https://github.com/CohenBerkeleyLab/BEHR-PSM-Gridding
-		psm_dir = '../../../BEHR-PSM-Gridding';
+		psm_dir = strcat(getenv('BEHR'),'BEHR-PSM-Gridding');
 
 		% The MatlabPythonInterface repository. May be cloned from
 		% https://github.com/CohenBerkeleyLab/MatlabPythonInterface
-		python_interface = '../../../MatlabPythonInterface';
+		python_interface = strcat(getenv('BEHR'),'MatlabPythonInterface');
 
 		% The WRF_Utils repository which should contain the function
 		% convert_wrf_temperature.m May be cloned from
 		% https://github.com/CohenBerkeleyLab/WRF_Utils
-		wrf_utils = '../../../WRF_Utils';
+		wrf_utils = strcat(getenv('BEHR'),'WRF_Utils');
 
 		% The default path where OMI_SP_*_yyyymmdd.mat files will be saved
 		% and read from. It should have subdirectories for each region to be
 		% produced (e.g. "us" - must be lower case). For UC Berkeley users,
 		% is it on the file server at 128.32.208.13 which should be mounted
 		% on your computer.
-		sp_mat_dir = '../../../data/SP_Files';
+		sp_mat_dir = strcat(getenv('BEHR'),'data/SP_Files');
 
 		% The default root path where OMI_BEHR_*_yyyymmdd.mat files will be
 		% saved and read from. It should have subdirectories for each region
 		% to be produced and within each region directories "daily" and
 		% "monthly". For UC Berkeley users, is it on the file server at
 		% 128.32.208.13 which should be mounted on your computer.
-		behr_mat_dir = '../../../data/BEHR_Files';
+		behr_mat_dir = strcat(getenv('BEHR'),'data/BEHR_Files');
 
 		% This should contain folders organized by year and month with
 		% OMI-Aura_L2-OMNO2 files in them. For UC Berkeley users, is it on
 		% the file server at 128.32.208.13 which should be mounted on your
 		% computer.
-		omno2_dir = '../../../data/OMI/OMNO2/version_3_3_0';
+		omno2_dir = strcat(getenv('BEHR'),'data/OMI/OMNO2/version_3_3_0');
 
 		% This should contain folders organized by year and month with
 		% OMI-Aura_L2-OMNPIXCOR files in them. For UC Berkeley users, is it
 		% on the file server at 128.32.208.13 which should be mounted on
 		% your computer.
-		ompixcor_dir = '../../../data/OMI/OMPIXCOR/version_003';
+		ompixcor_dir = strcat(getenv('BEHR'),'data/OMI/OMPIXCOR/version_003');
 
 		% This should contain folders for each year with MYD06_L2 files in
 		% them. For UC Berkeley users, is it on the file server at
 		% 128.32.208.13 which should be mounted on your computer.
-		myd06_dir = '../../../data/MODIS/MYD06_L2';
+		myd06_dir = strcat(getenv('BEHR'),'data/MODIS/MYD06_L2');
 
 		% This should contain folders for each year with MCD43D* files in
 		% them. For UC Berkeley users, is it on the file server at
 		% 128.32.208.13 which should be mounted on your computer.
-		mcd43d_dir = '../../../data/MODIS/MCD43D';
+		mcd43d_dir = strcat(getenv('BEHR'),'data/MODIS/MCD43D');
 
 		% This is the "Land_Water_Mask_7Classes_UMD file, available from
 		% ftp://rsftp.eeos.umb.edu/data02/Gapfilled/ (as of 21 Sept 2017).
 		% For UC Berkeley users, is it on the file server at 128.32.208.13
 		% which should be mounted on your computer.
-		modis_land_mask = '../../../data/MODIS/Land_Water_Mask_7Classes_UMD.hdf';
+		modis_land_mask = strcat(getenv('BEHR'),'data/MODIS/Land_Water_Mask_7Classes_UMD.hdf');
 
 		% This is the folder with the GLOBE database, available from
 		% https://www.ngdc.noaa.gov/mgg/topo/gltiles.html (as of 21 Sept
 		% 2017). It should contain files a10g through p10g and their .hdr
 		% files. For UC Berkeley users, is it on the file server at
 		% 128.32.208.13 which should be mounted on your computer.
-		globe_dir = '../../../data/GLOBE_Database';
+		globe_dir = strcat(getenv('BEHR'),'data/GLOBE_Database');
 
 		% The directory where data should be staged before being put on the
 		% folders visible to the website. Also on the file server at
 		% 128.32.208.13 which should be mounted on your computer.
-		website_staging_dir = '../../../data/WEBSITE/staging';
+		website_staging_dir = strcat(getenv('BEHR'),'data/WEBSITE/staging');
 
 		% The path that contains the WRF_BEHR*.nc monthly profile files.
 		% This should be on the file server at cohenwrfnas.dyn.berkeley.edu.
@@ -132,7 +133,7 @@ classdef behr_paths
 		% them. These will be found on the file server at
 		% cohenwrfnas.dyn.berkeley.edu, all volumes must be mounted on your
 		% computer.
-		wrf_profiles = {'../../../data/wrf_profiles'};
+		wrf_profiles = {strcat(getenv('BEHR'),'data/wrf_profiles')};
 
     end
     
