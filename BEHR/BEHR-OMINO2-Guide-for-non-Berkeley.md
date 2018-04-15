@@ -29,7 +29,8 @@ If you don't have permission to change Matlab path, you should add BEHR to Matla
 
 1. Run `BEHR_initial_setup` in Matlab;
 2. You will find *behr_paths.m* in BEHR-core-utils/Utils/Constants;
-3. Change paths in behr_paths.m by yourself.
+3. Change paths in behr_paths.m by yourself. Check that all the paths listed in behr_paths.m are
+   correct. You can validate them by running behr_paths.ValidatePaths() in Matlab, it should return 1 (0 means at least one path is invalid).
 
 ### Note
 
@@ -37,7 +38,7 @@ If you don't have permission to change Matlab path, you should add BEHR to Matla
 2. **behr_mat_dir** should have subdirectories for each region to be produced and within each region directories "daily" and "monthly".
 3. **myd06_dir** should contain folders for each year with MYD06_L2 files in them.
 4. **mcd43d_dir** should contain folders for each year with MCD43D* files in them.
-5.  **wrf_profiles** it assumes that WRF files are organized in a directory structure behr_paths.wrf_profiles/<region>/<yyyy>/<mm> where <region> is the region being retrieved (passed as the "region" input), <yyyy> is the four-digit year and <mm> is the two-digit month. If you specify wrf_output_path explicitly, then it assumes all WRF output files are in that directory.
+5. **wrf_profiles** it assumes that WRF files are organized in a directory structure behr_paths.wrf_profiles/<region>/<yyyy>/<mm> where <region> is the region being retrieved (passed as the "region" input), <yyyy> is the four-digit year and <mm> is the two-digit month. If you specify wrf_output_path explicitly, then it assumes all WRF output files are in that directory.
 
 ## Download data
 
