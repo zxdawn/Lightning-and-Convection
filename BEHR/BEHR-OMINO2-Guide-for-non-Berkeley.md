@@ -124,6 +124,11 @@ For OMPIXCOR:
 2. [Set python environment](https://github.com/zxdawn/BEHR-PSM-Gridding) for BEHR-PSM-Gridding and [compile](https://github.com/zxdawn/BEHR-PSM-Gridding/blob/develop/omi/help.txt) omi.
 3. Run `BEHR_main.m`
 
+## Publish OMI_BEHR
+
+1. Initialize parameters of `BEHR_publishing_main.m`(*/BEHR/BEHR-core/HDF tools)
+2. Run `BEHR_publishing_main.m`
+
 ## Reference
 
 [BEHR_Readme.pdf](https://github.com/CohenBerkeleyLab/BEHR-core/tree/develop/Documentation)
