@@ -1,14 +1,13 @@
 # Calculate LNOx based on BEHR and ENTLN data
 #
 # Filter conditions:
-    # valid pixels > 5 for each 1*1 grid;
-    # CRF > CRF_threshold for each OMI pixel;
-    # CF  > CF_threshold for each OMI pixel;
-    # Flashes > flashthreshold for 1*1 grid 3h before OMI passtime;
-    # Strokes > strokethreshold for 1*1 grid 3h before OMI passtime
+    # valid pixels >= 5 for each 1*1 grid;
+    # CRF >= CRF_threshold for each OMI pixel;
+    # CF  >= CF_threshold for each OMI pixel;
+    # Flashes >= flashthreshold for 1*1 grid 3h before OMI passtime;
+    # Strokes >= strokethreshold for 1*1 grid 3h before OMI passtime
 #
 # Xin Zhang <xinzhang1215@gmail.com> 17 Aug 2018
-
 
 import os
 import csv
@@ -23,13 +22,11 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-
 default_vals =  {'north': 50.5, 'south': 21.5,
                 'west': -110.5, 'east': -76.5,
                 'CRF_threshold': 0.7, 'CF_threshold': 0.4,
                 'flashthreshold': 3, 'strokethreshold': 3,
                 'min_pixels': 5}
-
 
 def parse_args():
     '''
@@ -38,7 +35,6 @@ def parse_args():
     These are arguments that if not specified have reasonable default values.default.
      The key will be the flag name (without the --) and the value is the default value.
     '''
-
     parser = argparse.ArgumentParser(description='program to calculate LNOx from ENTLN and BEHR data')
     parser.add_argument('--north', default = default_vals['north'], type = float, help = 'north bound')
     parser.add_argument('--south', default = default_vals['south'], type = float, help = 'south bound')
@@ -209,8 +205,8 @@ def main(entln_file, north, south, west, east,
 if __name__ == '__main__':
     # Set directory of BEHR and ENTLN data
     # Read arguments
-    behr_dir  = '/home/xin/Documents/BEHR_US/'
-    entln_dir = '/home/xin/Desktop/'
+    behr_dir  = '/public/home/zhangxin/bigdata/BEHR_data/'
+    entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data'
     args = parse_args()
 
     for behr_file in os.listdir(behr_dir):
