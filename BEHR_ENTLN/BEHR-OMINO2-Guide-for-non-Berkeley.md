@@ -42,9 +42,14 @@ If you don't have permission to change Matlab path, you should add BEHR to Matla
 
 ## Download data
 
+### Automated script (suggest)
+
+Check this [repo](https://github.com/zxdawn/BEHR-Automation)
+
+### Download  data manually
+
 Check Section 4.3 of BEHR_Read_me file.
 
-### Download url
 **GLOBE database**
 
 https://www.ngdc.noaa.gov/mgg/topo/gltiles.html , https://www.ngdc.noaa.gov/mgg/topo/elev/esri/hdr/
