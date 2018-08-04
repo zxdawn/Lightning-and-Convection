@@ -7,7 +7,12 @@
     # Flashes >= flashthreshold for 1*1 grid 3h before OMI passtime;
     # Strokes >= strokethreshold for 1*1 grid 3h before OMI passtime
 #
-# Xin Zhang <xinzhang1215@gmail.com> 17 Aug 2018
+# Parameters:
+#   north, south, west and east
+#   CRF_threshold, CF_threshold, flashthreshold, strokethreshold and min_pixels
+#   directory of BEHR and ENTLN data
+#
+# Xin Zhang <xinzhang1215@gmail.com> 17 Jul 2018
 
 import os
 import csv
@@ -85,6 +90,7 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold):
     CRF  = f['Data/'+swath+'/CloudRadianceFraction'][:]
     CF   = f['Data/'+swath+'/CloudFraction'][:]
     LNOx = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop'][:]
+    LNOx_pickering = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop_pickering'][:]
 
     # Get OMI passtime
     ref_time = datetime(1993, 1, 1)
@@ -97,8 +103,9 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold):
     filter_CF  =  CF < CF_threshold
     filter = filter_CRF | filter_CF
     LNOx[filter] = 0.
+    LNOx_pickering[filter] = 0.
 
-    lon_1D = lon.ravel(); lat_1D = lat.ravel(); LNOx_1D = LNOx.ravel()
+    lon_1D = lon.ravel(); lat_1D = lat.ravel(); LNOx_1D = LNOx.ravel(); LNOx_pickering_1D = LNOx_pickering.ravel()
 
     # Filter_2: pixels meet Filter_1 condtion
     valid_pixels = stats.binned_statistic_2d(lon_1D, lat_1D, LNOx_1D, \
@@ -110,10 +117,13 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold):
                     # statistic=lambda LNOx_1D: np.nansum(LNOx_1D), \
                     'sum',bins=[bin_lon,bin_lat]).statistic
 
-    return sdate, edate, valid_pixels, LNOx_bin
+    LNOx_pickering_bin = stats.binned_statistic_2d(lon_1D, lat_1D, LNOx_pickering_1D, \
+                    'sum',bins=[bin_lon,bin_lat]).statistic
+
+    return sdate, edate, valid_pixels, LNOx_bin, LNOx_pickering_bin
 
 
-def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, TL_bin):
+def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bin, TL_bin):
     # Create group
     swathgrp = save_nc.createGroup(swath)
 
@@ -126,9 +136,10 @@ def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, TL_bin):
     lat = swathgrp.createDimension('lat', lat_center.shape[0])
 
     # Create variables
-    latitudes = swathgrp.createVariable('Latitude', 'f4',('lat',))
-    longitudes = swathgrp.createVariable('Longitude', 'f4',('lon',))
-    LNOx = swathgrp.createVariable('LNOx', 'f4', ('lon','lat'), fill_value=0.)
+    latitudes      = swathgrp.createVariable('Latitude', 'f4',('lat',))
+    longitudes     = swathgrp.createVariable('Longitude', 'f4',('lon',))
+    LNOx           = swathgrp.createVariable('LNOx', 'f4', ('lon','lat'), fill_value=0.)
+    LNOx_pickering = swathgrp.createVariable('LNOx_pickering', 'f4', ('lon','lat'), fill_value=0.)
 
     if name.split('_')[2] == 'entlnflash':
         Flashes = swathgrp.createVariable('Flashes', 'f4', ('lon','lat'), fill_value=0.)
@@ -139,6 +150,7 @@ def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, TL_bin):
     latitudes.units = 'degree_north'
     longitudes.units = 'degree_east'
     LNOx.units = 'molec./cm^2'
+    LNOx_pickering.units = 'molec./cm^2'
 
     if name.split('_')[2] == 'entlnflash':
         Flashes.units = 'kiloFlashes'
@@ -146,9 +158,10 @@ def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, TL_bin):
         Strokes.units = 'kiloStrokes'
 
     # Write data
-    latitudes[:]  = lat_center
-    longitudes[:] = lon_center
-    LNOx[:]       = LNOx_bin
+    latitudes[:]      = lat_center
+    longitudes[:]     = lon_center
+    LNOx[:]           = LNOx_bin
+    LNOx_pickering[:] = LNOx_pickering_bin
 
     if name.split('_')[2] == 'entlnflash':
         Flashes[:] = TL_bin
@@ -173,12 +186,15 @@ def process_data(behr_file, entln_file, bin_lon, bin_lat, Lon_min, Lon_max, Lat_
     save_nc = Dataset(name+'.nc', 'w', format='NETCDF4')
 
     # Read BEHR file by swath
+    print ('Reading BEHR data ...')
     f = h5py.File(behr_file,'r')
     swaths = list(f['Data'])
 
     for swath in swaths:
         # Read BEHR and ENTLN data
-        sdate, edate, valid_pixels, LNOx_bin = read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold)
+        print ('    Reading swath',swath)
+        sdate, edate, valid_pixels, LNOx_bin, LNOx_pickering_bin = read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold)
+        print ('Reading ENTLN data ...')
         CG_bin, IC_bin = read_entln(entln_file, sdate, edate, bin_lon, bin_lat)
         TL_bin = CG_bin + IC_bin
 
@@ -186,10 +202,11 @@ def process_data(behr_file, entln_file, bin_lon, bin_lat, Lon_min, Lon_max, Lat_
         # total flashes(pulses) per grid box and moles of LNOx per grid box
         # Values set to zero in grid boxes where flash(pulse) or CRF threshold is not met
         cond = (TL_bin < threshold) | (valid_pixels < min_pixels)
-        TL_bin[cond] = 0.; LNOx_bin[cond] = 0.
+        TL_bin[cond] = 0.; LNOx_bin[cond] = 0.; LNOx_pickering_bin = 0.
 
         # Save to nc file
-        write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, TL_bin)
+        print ('Save swath', swath)
+        write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bin, TL_bin)
 
 
 def main(entln_file, north, south, west, east, 
@@ -206,7 +223,7 @@ if __name__ == '__main__':
     # Set directory of BEHR and ENTLN data
     # Read arguments
     behr_dir  = '/public/home/zhangxin/bigdata/BEHR_data/'
-    entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data'
+    entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data/'
     args = parse_args()
 
     for behr_file in os.listdir(behr_dir):
