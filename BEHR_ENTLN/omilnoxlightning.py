@@ -123,9 +123,9 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold):
     return sdate, edate, valid_pixels, LNOx_bin, LNOx_pickering_bin
 
 
-def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bin, TL_bin):
+def write_nc(name, date_str, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bin, TL_bin):
     # Create group
-    swathgrp = save_nc.createGroup(swath)
+    swathgrp = save_nc.createGroup('/'+date_str+'/'+swath)
 
     # Get lon/lat
     lon_center = bin_lon[:-1]+0.5
@@ -169,7 +169,7 @@ def write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bi
         Strokes[:] = TL_bin
 
 
-def process_data(behr_file, entln_file, bin_lon, bin_lat, Lon_min, Lon_max, Lat_min, Lat_max,
+def process_data(behr_file, entln_file, date_str, bin_lon, bin_lat, Lon_min, Lon_max, Lat_min, Lat_max,
         CRF_threshold, CF_threshold, flashthreshold, strokethreshold, min_pixels):
     # Set savefile name and group
     if ntpath.basename(entln_file).startswith('LtgFlashPortions'):
@@ -181,7 +181,7 @@ def process_data(behr_file, entln_file, bin_lon, bin_lat, Lon_min, Lon_max, Lat_
 
     name = 'omilnox_5pixel_entln'+kind\
             +'_crf'+str(int(CRF_threshold*100))+'_cf'+str(int(CF_threshold*100))\
-            +'_'+kind+'threshold'+str(int(threshold*100))+'_'+ntpath.basename(behr_file)[-12:-4]
+            +'_'+kind+'threshold'+str(int(threshold*100))+'_'+ntpath.basename(behr_file)[-12:-8]
 
     save_nc = Dataset(name+'.nc', 'w', format='NETCDF4')
 
@@ -206,16 +206,17 @@ def process_data(behr_file, entln_file, bin_lon, bin_lat, Lon_min, Lon_max, Lat_
 
         # Save to nc file
         print ('Save swath', swath)
-        write_nc(name, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bin, TL_bin)
+        write_nc(name, date_str, save_nc, swath, bin_lon, bin_lat, LNOx_bin, LNOx_pickering_bin, TL_bin)
 
 
-def main(entln_file, north, south, west, east, 
+def main(behr_file, entln_file, date_str,
+        north, south, west, east, 
         CRF_threshold, CF_threshold, flashthreshold, 
         strokethreshold, min_pixels):
     bin_lon  = np.arange(west, east, 1)
     bin_lat  = np.arange(south, north, 1)
 
-    process_data(behr_file, entln_file, bin_lon, bin_lat, west, east, south, north,\
+    process_data(behr_file, entln_file, date_str, bin_lon, bin_lat, west, east, south, north,\
         CRF_threshold, CF_threshold, flashthreshold, strokethreshold, min_pixels)
 
 
@@ -239,4 +240,4 @@ if __name__ == '__main__':
             # Process BEHR and ENTLN data
             behr_file = behr_dir + behr_file
             for entln_file in entln_files:
-                main(entln_file, **args)
+                main(behr_file, entln_file, date_str, **args)
