@@ -37,7 +37,6 @@ behr_dir  = '/public/home/zhangxin/bigdata/BEHR_data/'
 entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data/'
 save_dir  = '/public/home/zhangxin/bigdata/OMILNOx_data/'
 
-
 def parse_args():
     '''
     Parses command line arguments given in bash. Assumes that all arguments are flag-value pairs
@@ -80,9 +79,16 @@ def read_entln(filename, sdate, edate, bin_lon, bin_lat):
     lon_IC = df['longitude'].loc[mask][type == 1]
     lat_IC = df['latitude'].loc[mask][type == 1]
 
-    CG_bin = stats.binned_statistic_2d(lon_CG, lat_CG, CG, \
+    if len(CG) == 0:
+        CG_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
+    else:
+        CG_bin = stats.binned_statistic_2d(lon_CG, lat_CG, CG, \
                 'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kpulses)
-    IC_bin = stats.binned_statistic_2d(lon_IC, lat_IC, IC, \
+
+    if len(IC) == 0:
+        IC_bin = np.zeros((bin_lon.shape, bin_lat.shape))
+    else:
+        IC_bin = stats.binned_statistic_2d(lon_IC, lat_IC, IC, \
                 'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kpulses)
 
     return CG_bin, IC_bin
