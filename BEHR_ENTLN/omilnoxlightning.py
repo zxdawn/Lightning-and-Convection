@@ -207,7 +207,7 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, CRF_bin, 
     CRF[:]            = CRF_bin
     CP[:]             = CP_bin
     AMFLNOx[:]        = AMFLNOx_bin
-    AMFLNOx_pickering = AMFLNOx_pickering_bin
+    AMFLNOx_pickering[:] = AMFLNOx_pickering_bin
     LNOx[:]           = LNOx_bin
     LNOx_pickering[:] = LNOx_pickering_bin
 
