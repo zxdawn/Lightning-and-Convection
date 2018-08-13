@@ -37,6 +37,7 @@ behr_dir  = '/public/home/zhangxin/bigdata/BEHR_data/'
 entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data/'
 save_dir  = '/public/home/zhangxin/bigdata/OMILNOx_data/'
 
+
 def parse_args():
     '''
     Parses command line arguments given in bash. Assumes that all arguments are flag-value pairs
@@ -107,20 +108,16 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold):
     sdate = edate - timedelta(hours=3)
 
     # Filter_1: CRF and CF
-    filter_CRF = CRF < CRF_threshold
-    filter_CF  =  CF < CF_threshold
-    filter = filter_CRF | filter_CF
+    filter_CRF = CRF >= CRF_threshold
+    filter_CF  =  CF >= CF_threshold
+    filter = filter_CRF & filter_CF
 
-    AMFLNOx[filter] = 0.; AMFLNOx_pickering[filter] = 0.
-    CRF[filter] = 0.; CP[filter] = 0.
-    LNOx[filter] = 0.; LNOx_pickering[filter] = 0.
-
-    lon_1D = lon.ravel(); lat_1D = lat.ravel()
-    CRF_1D = CRF.ravel(); CP_1D  = CP.ravel()
-    AMFLNOx_1D = AMFLNOx.ravel()
-    AMFLNOx_pickering_1D = AMFLNOx_pickering.ravel()
-    LNOx_1D = LNOx.ravel()
-    LNOx_pickering_1D = LNOx_pickering.ravel()
+    lon_1D = lon[filter].ravel(); lat_1D = lat[filter].ravel()
+    CRF_1D = CRF[filter].ravel(); CP_1D  = CP[filter].ravel()
+    AMFLNOx_1D = AMFLNOx[filter].ravel()
+    AMFLNOx_pickering_1D = AMFLNOx_pickering[filter].ravel()
+    LNOx_1D = LNOx[filter].ravel()
+    LNOx_pickering_1D = LNOx_pickering[filter].ravel()
 
     # Filter_2: pixels meet Filter_1 condtion
     valid_pixels = stats.binned_statistic_2d(lon_1D, lat_1D, LNOx_1D, \
@@ -159,8 +156,8 @@ def write_geo(save_nc, lon_center, lat_center):
     lat = geogrp.createDimension('lat', lat_center.shape[0])
 
     # Create variables
-    latitudes         = geogrp.createVariable('Latitude', 'f4',('lat',))
-    longitudes        = geogrp.createVariable('Longitude', 'f4',('lon',))
+    latitudes         = geogrp.createVariable('Latitude', 'f4',('lat',),zlib=True)
+    longitudes        = geogrp.createVariable('Longitude', 'f4',('lon',),zlib=True)
     latitudes.units = 'degree_north'
     longitudes.units = 'degree_east'
 
@@ -169,7 +166,7 @@ def write_geo(save_nc, lon_center, lat_center):
     longitudes[:]     = lon_center
 
 
-def write_data(name, kind, date_str, save_nc, swath, lon_center, lat_center, CRF_bin, CP_bin, \
+def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, CRF_bin, CP_bin, \
     AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, TL_bin):
     # Create group
     swathgrp = save_nc.createGroup('/Data_fields/'+kind+'/'+date_str+'/'+swath)
@@ -179,23 +176,23 @@ def write_data(name, kind, date_str, save_nc, swath, lon_center, lat_center, CRF
     lat = swathgrp.createDimension('lat', lat_center.shape[0])
 
     # Create variables
-    CRF               = swathgrp.createVariable('CloudRadianceFraction', 'f4', ('lon','lat'), fill_value=0.)
-    CP                = swathgrp.createVariable('CloudPressure', 'f4', ('lon','lat'), fill_value=0.)
-    AMFLNOx           = swathgrp.createVariable('AMFLNOx', 'f4', ('lon','lat'), fill_value=0.)
-    AMFLNOx_pickering = swathgrp.createVariable('AMFLNOx_pickering', 'f4', ('lon','lat'), fill_value=0.)
-    LNOx              = swathgrp.createVariable('LNOx', 'f4', ('lon','lat'), fill_value=0.)
-    LNOx_pickering    = swathgrp.createVariable('LNOx_pickering', 'f4', ('lon','lat'), fill_value=0.)
+    CRF               = swathgrp.createVariable('CloudRadianceFraction', 'f4', ('lon','lat'), fill_value=0., zlib=True)
+    CP                = swathgrp.createVariable('CloudPressure', 'f4', ('lon','lat'), fill_value=0., zlib=True)
+    AMFLNOx           = swathgrp.createVariable('AMFLNOx', 'f4', ('lon','lat'), fill_value=0., zlib=True)
+    AMFLNOx_pickering = swathgrp.createVariable('AMFLNOx_pickering', 'f4', ('lon','lat'), fill_value=0., zlib=True)
+    LNOx              = swathgrp.createVariable('LNOx', 'f4', ('lon','lat'), fill_value=0., zlib=True)
+    LNOx_pickering    = swathgrp.createVariable('LNOx_pickering', 'f4', ('lon','lat'), fill_value=0.,zlib=True)
 
-    if name.split('_')[2] == 'entlnflash':
-        Flashes = swathgrp.createVariable('Flashes', 'f4', ('lon','lat'), fill_value=0.)
+    if kind == 'flash':
+        Flashes = swathgrp.createVariable('Flashes', 'f4', ('lon','lat'), fill_value=0., zlib=True)
     else:
-        Strokes = swathgrp.createVariable('Strokes', 'f4', ('lon','lat'), fill_value=0.)
+        Strokes = swathgrp.createVariable('Strokes', 'f4', ('lon','lat'), fill_value=0., zlib=True)
 
     # Set units
     LNOx.units = 'molec./cm^2'
     LNOx_pickering.units = 'molec./cm^2'
 
-    if name.split('_')[2] == 'entlnflash':
+    if kind == 'flash':
         Flashes.units = 'kiloFlashes'
     else:
         Strokes.units = 'kiloStrokes'
@@ -208,7 +205,7 @@ def write_data(name, kind, date_str, save_nc, swath, lon_center, lat_center, CRF
     LNOx[:]           = LNOx_bin
     LNOx_pickering[:] = LNOx_pickering_bin
 
-    if name.split('_')[2] == 'entlnflash':
+    if kind == 'flash':
         Flashes[:] = TL_bin
     else:
         Strokes[:] = TL_bin
@@ -278,7 +275,7 @@ def main(behr_file, entln_file, date_str,
         if debug > 0:
             print ('    Save swath', swath)
 
-        write_data(name, kind, date_str, save_nc, swath, lon_center, lat_center, \
+        write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
                 CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, TL_bin)
 
     save_nc.close()
