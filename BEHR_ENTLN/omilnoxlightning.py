@@ -1,17 +1,53 @@
 # Calculate LNOx based on BEHR and ENTLN data
-#
-# Filter conditions:
-    # valid pixels >= 5 for each 1*1 grid;
-    # CRF >= CRF_threshold for each OMI pixel;
-    # CF  >= CF_threshold for each OMI pixel;
-    # Flashes >= flashthreshold for 1*1 grid 3h before OMI passtime;
-    # Strokes >= strokethreshold for 1*1 grid 3h before OMI passtime
-#
+# and save as one .nc file by swaths
+
 # Parameters:
 #   north, south, west and east
-#   CRF_threshold, CF_threshold, flashthreshold, strokethreshold and min_pixels
+#   t_window, CRF_threshold, CF_threshold, flash_threshold, stroke_threshold and min_pixels
 #   directory of BEHR and ENTLN data
+
+# Filter conditions:
+#   valid pixels >= 5 for each 1*1 grid:
+#   CRF >= CRF_threshold for each OMI pixel;
+#   CF  >= CF_threshold for each OMI pixel;
+#   Flashes >= flash_threshold for 1*1 grid t_window before OMI overpass;
+#   Strokes >= stroke_threshold for 1*1 grid t_window before OMI overpass
+
+#   CRF_threshold and min_pixels, see Pickering et al. (2016);
+#   CF_threshold, see Sarah et al. (2017);
+#   flashth_reshold, stroke_threshold and t_window, see Jeff et al. (2018 submitted)
+#   Method of dealing with negative and large value, see https://github.com/CohenBerkeleyLab/BEHR-core/issues/8
+
+# Structure of .nc files:
+# group: Data_fields {
+#    group: flash {
+#             group: 'date' {
+#                group: 'Swath' {
+#                    variables:......
+#        }
 #
+#      }
+#
+#    }
+#    group: stroke {
+#             group: 'date' {
+#                group: 'Swath' {
+#                    variables:......
+#        }
+#
+#      }
+#
+#    }
+#  }
+#  group: Geolocation_Fields {
+#    dimensions:
+#      lon = 33;
+#      lat = 28;
+#    variables:
+#      float Latitude(lat=28);
+#      float Longitude(lon=33);
+#  }
+
 # Xin Zhang <xinzhang1215@gmail.com> 17 Jul 2018
 
 import os
@@ -24,14 +60,17 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from netCDF4 import Dataset
-import matplotlib.pyplot as plt
+from functools import partial
 from datetime import datetime, timedelta
 
 default_vals =  {'north': 50.5, 'south': 21.5,
                 'west': -110.5, 'east': -76.5,
                 'CRF_threshold': 0.7, 'CF_threshold': 0.4,
-                'flashthreshold': 3, 'strokethreshold': 3,
-                'min_pixels': 5, 'debug': 0}
+                'flash_threshold': 2.4, 'stroke_threshold': 2.4,
+                'min_pixels': 5, 't_window': 2.4,
+                'debug': 0}
+
+bad_flags = [2,4,19] # 2:AMF error, 4:row anomaly, 19:above-cloud
 
 behr_dir  = '/public/home/zhangxin/bigdata/BEHR_data/'
 entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data/'
@@ -51,9 +90,10 @@ def parse_args():
     parser.add_argument('--east', default = default_vals['east'], type = float, help = 'east bound')
     parser.add_argument('--CRF_threshold', default = default_vals['CRF_threshold'], type = float, help = 'CRF_threshold')
     parser.add_argument('--CF_threshold', default = default_vals['CF_threshold'], type = float, help = 'CF_threshold')
-    parser.add_argument('--flashthreshold', default = default_vals['flashthreshold'], type = float, help = 'flashthreshold')
-    parser.add_argument('--strokethreshold', default = default_vals['strokethreshold'], type = float, help = 'strokethreshold')
+    parser.add_argument('--flash_threshold', default = default_vals['flash_threshold'], type = float, help = 'flash_threshold')
+    parser.add_argument('--stroke_threshold', default = default_vals['stroke_threshold'], type = float, help = 'stroke_threshold')
     parser.add_argument('--min_pixels', default = default_vals['min_pixels'], type = float, help = 'min_pixels')
+    parser.add_argument('--t_window', default = default_vals['t_window'], type = float, help = 't_window')
     parser.add_argument('--debug', default = default_vals['debug'], type = int, help = 'debug level')
 
     args = parser.parse_args()
@@ -61,96 +101,148 @@ def parse_args():
     return vars(args)
 
 
-def read_entln(filename, sdate, edate, bin_lon, bin_lat):
-    df = pd.read_csv(filename, delimiter=',')
+def power_find(n):
+    result = []
+    binary = bin(n)[:1:-1]
+    for x in range(len(binary)):
+        if int(binary[x]):
+            result.append(x)
 
-    # Filter 3h before OMI passtime
+    return result
+
+
+def bin_mathod(lon, lat, bin_lon, bin_lat, method, *args):
+    return [stats.binned_statistic_2d(lon, lat, arg, method, bins=[bin_lon, bin_lat]).statistic \
+            for arg in args]
+
+
+def check(mask, *args):
+    return [arg[mask] for arg in args]
+
+
+# def convert_array(*args):
+    # return [np.array(arg) for arg in args]
+
+
+def get_omidate(t, t_window):
+    ref_time = datetime(1993, 1, 1)
+    edate = ref_time + timedelta(seconds=float(t))
+    sdate = edate - timedelta(hours=t_window)
+
+    return sdate, edate
+
+
+def read_entln(filename, times, t_window, lon, lat, bin_lon, bin_lat):
+    df   = pd.read_csv(filename, delimiter=',')
     date = pd.to_datetime(df['timestamp'])
+    lon2 = df['longitude']
+    lat2 = df['latitude']
+
+    # Filter t_window before OMI overpass
+    sdate, edate = get_omidate(times.mean(), t_window)
     mask = (sdate <= date) & (date <= edate)
 
-    # Get CG and IC flashes/pulses
+    # Get CG and IC flashes/strokes
     type = df['type'].loc[mask]
     CG = type[type == 0 | 40]
     IC = type[type == 1]
 
     # Get lon and lat
-    lon_CG = df['longitude'].loc[mask][type == 0 | 40]
-    lat_CG = df['latitude'].loc[mask][type == 0 | 40]
-    lon_IC = df['longitude'].loc[mask][type == 1]
-    lat_IC = df['latitude'].loc[mask][type == 1]
+    lon_CG = lon2.loc[mask][type == 0 | 40]
+    lat_CG = lat2.loc[mask][type == 0 | 40]
+    lon_IC = lon2.loc[mask][type == 1]
+    lat_IC = lat2.loc[mask][type == 1]
+
+    # Accurate time, but very slow.
+    # Because duration of each swath is ~ 9 min, I decide to use average overpass (above).
+    # Xin (Aug 23, 2018)
+    # 
+    # CG, IC, lat_CG, lat_IC, lon_CG, lon_IC = [], [], [], [], [], []
+    # for counter, t in enumerate(times):
+    #     # Filter t_window before OMI overpass
+    #     sdate, edate = get_omidate(t, t_window)
+    #     print (sdate,edate,lon[counter],lat[counter])
+    #     mask = (sdate <= date) & (date <= edate) & (lon[counter]-0.05 <= lon2) & (lon2<= lon[counter]+0.05) \
+    #                 & (lat[counter]-0.05 <= lat2) & (lat2<= lat[counter]+0.05) 
+
+    #     # Get CG and IC flashes/strokes
+    #     type = df['type'].loc[mask]
+    #     CG.extend(type[type == 0 | 40])
+    #     IC.extend(type[type == 1])
+
+    #     # Get lon and lat
+    #     lon_CG.extend(lon2.loc[mask][type == 0 | 40])
+    #     lon_IC.extend(lon2.loc[mask][type == 1])
+    #     lat_CG.extend(lat2.loc[mask][type == 0 | 40])
+    #     lat_IC.extend(lat2.loc[mask][type == 1])
+
+    # Convert list to array for binned_statistic_2d
+    # CG, IC, lon_CG, lon_IC, lat_CG, lat_IC = convert_array(CG, IC, lon_CG, lon_IC, lat_CG, lat_IC)
 
     if len(CG) == 0:
         CG_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
     else:
         CG_bin = stats.binned_statistic_2d(lon_CG, lat_CG, CG, \
-                'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kpulses)
+                'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kstrokes)
 
     if len(IC) == 0:
-        IC_bin = np.zeros((bin_lon.shape, bin_lat.shape))
+        IC_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
     else:
         IC_bin = stats.binned_statistic_2d(lon_IC, lat_IC, IC, \
-                'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kpulses)
+                'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kstrokes)
 
     return CG_bin, IC_bin
 
 
-def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold):
+def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, t_window):
     # Read BEHR variables
-    T        = f['Data/'+swath+'/Time'][:]
-    lon      = f['Data/'+swath+'/Longitude'][:]
-    lat      = f['Data/'+swath+'/Latitude'][:]
-    CRF      = f['Data/'+swath+'/CloudRadianceFraction'][:]
-    CP       = f['Data/'+swath+'/CloudPressure'][:]
-    CF       = f['Data/'+swath+'/CloudFraction'][:]
-    AMFLNOx  = f['Data/'+swath+'/BEHRAMFLNOx'][:]
-    LNOx     = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop'][:]
+    T                  = f['Data/'+swath+'/Time_2D'][:]
+    lon                = f['Data/'+swath+'/Longitude'][:]
+    lat                = f['Data/'+swath+'/Latitude'][:]
+    CRF                = f['Data/'+swath+'/CloudRadianceFraction'][:]
+    CP                 = f['Data/'+swath+'/CloudPressure'][:]
+    CF                 = f['Data/'+swath+'/CloudFraction'][:]
+    AMFLNOx            = f['Data/'+swath+'/BEHRAMFLNOx'][:]
+    LNOx               = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop'][:]
     AMFLNOx_pickering  = f['Data/'+swath+'/BEHRAMFLNOx_pickering'][:]
     LNOx_pickering     = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop_pickering'][:]
+    flag               = f['Data/'+swath+'/BEHRQualityFlags'][:]
 
-    # Get OMI passtime
-    ref_time = datetime(1993, 1, 1)
-    T_mean = np.mean(T[0])
-    edate = ref_time + timedelta(seconds=float(T_mean))
-    sdate = edate - timedelta(hours=3)
+    # Exclude NaN value
+    T, lon, lat, CRF, CP, CF, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag  = \
+            check(T>0, T, lon, lat, CRF, CP, CF, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
 
-    # Filter_1: CRF and CF
-    filter_CRF = CRF >= CRF_threshold
-    filter_CF  =  CF >= CF_threshold
-    filter = filter_CRF & filter_CF
+    # Filter_1.1: CRF and CF
+    filter_CRF  = CRF >= CRF_threshold
+    filter_CF   =  CF >= CF_threshold
+    T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag = check(filter_CRF & filter_CF, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
 
-    lon_1D = lon[filter].ravel(); lat_1D = lat[filter].ravel()
-    CRF_1D = CRF[filter].ravel(); CP_1D  = CP[filter].ravel()
-    AMFLNOx_1D = AMFLNOx[filter].ravel()
-    AMFLNOx_pickering_1D = AMFLNOx_pickering[filter].ravel()
-    LNOx_1D = LNOx[filter].ravel()
-    LNOx_pickering_1D = LNOx_pickering[filter].ravel()
+    if len(T) == 0:
+        valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
+            (np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1)) for i in range(7))
+    else:
+        # Filter_1.2-1.4: quality flags and exclude negative values
+        filter_quality  = [not any(x in bad_flags for x in power_find(i)) for i in flag]
+        filter_positive = (LNOx>0) & (LNOx_pickering>0)
+        filter_nonan    = ~np.isnan(AMFLNOx) | ~np.isnan(AMFLNOx_pickering)
 
-    # Filter_2: pixels meet Filter_1 condtion
-    valid_pixels = stats.binned_statistic_2d(lon_1D, lat_1D, LNOx_1D, \
-                        statistic=lambda LNOx_1D: np.count_nonzero(LNOx_1D), \
-                        bins=[bin_lon,bin_lat]).statistic
+        T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag = check(filter_quality & filter_positive & filter_nonan, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
 
-    #Bin CRF and CP
-    CRF_bin = stats.binned_statistic_2d(lon_1D, lat_1D, CRF_1D, \
-                    'mean',bins=[bin_lon,bin_lat]).statistic
-    CP_bin  = stats.binned_statistic_2d(lon_1D, lat_1D, CP_1D, \
-                    'mean',bins=[bin_lon,bin_lat]).statistic
+        if len(T) == 0:
+            valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
+                (np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1)) for i in range(7))
+        else:
+            # Filter_2: Number of pixels meet Filter_1 condition.
+            # This will be used as condition for valid pixels
+            valid_pixels = stats.binned_statistic_2d(lon, lat, LNOx, \
+                                statistic=lambda LNOx: np.count_nonzero(LNOx), \
+                                bins=[bin_lon,bin_lat]).statistic
 
-    # Bin AMF
-    AMFLNOx_bin = stats.binned_statistic_2d(lon_1D, lat_1D, AMFLNOx_1D, \
-                    'mean',bins=[bin_lon,bin_lat]).statistic
-    AMFLNOx_pickering_bin = stats.binned_statistic_2d(lon_1D, lat_1D, AMFLNOx_pickering_1D, \
-                    'mean',bins=[bin_lon,bin_lat]).statistic
+            #Bin variables
+            CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin\
+                    = bin_mathod(lon, lat, bin_lon, bin_lat, 'mean', CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering)
 
-    # Bin LNOx
-    LNOx_bin = stats.binned_statistic_2d(lon_1D, lat_1D, LNOx_1D, \
-                    # statistic=lambda LNOx_1D: np.nansum(LNOx_1D), \
-                    'sum',bins=[bin_lon,bin_lat]).statistic
-
-    LNOx_pickering_bin = stats.binned_statistic_2d(lon_1D, lat_1D, LNOx_pickering_1D, \
-                    'sum',bins=[bin_lon,bin_lat]).statistic
-
-    return sdate, edate, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin
+    return T, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin
 
 
 def write_geo(save_nc, lon_center, lat_center):
@@ -164,16 +256,16 @@ def write_geo(save_nc, lon_center, lat_center):
     # Create variables
     latitudes         = geogrp.createVariable('Latitude', 'f4',('lat',),zlib=True)
     longitudes        = geogrp.createVariable('Longitude', 'f4',('lon',),zlib=True)
-    latitudes.units = 'degree_north'
-    longitudes.units = 'degree_east'
+    latitudes.units   = 'degree_north'
+    longitudes.units  = 'degree_east'
 
     # Write data
     latitudes[:]      = lat_center
     longitudes[:]     = lon_center
 
 
-def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, CRF_bin, CP_bin, \
-    AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, TL_bin):
+def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
+    CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, TL_bin):
     # Create group
     swathgrp = save_nc.createGroup('/Data_fields/'+kind+'/'+date_str+'/'+swath)
 
@@ -204,12 +296,12 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, CRF_bin, 
         Strokes.units = 'kiloStrokes'
 
     # Write data
-    CRF[:]            = CRF_bin
-    CP[:]             = CP_bin
-    AMFLNOx[:]        = AMFLNOx_bin
+    CRF[:]               = CRF_bin
+    CP[:]                = CP_bin
+    AMFLNOx[:]           = AMFLNOx_bin
     AMFLNOx_pickering[:] = AMFLNOx_pickering_bin
-    LNOx[:]           = LNOx_bin
-    LNOx_pickering[:] = LNOx_pickering_bin
+    LNOx[:]              = LNOx_bin
+    LNOx_pickering[:]    = LNOx_pickering_bin
 
     if kind == 'flash':
         Flashes[:] = TL_bin
@@ -219,19 +311,19 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, CRF_bin, 
 
 def main(behr_file, entln_file, date_str,
         north, south, west, east, 
-        CRF_threshold, CF_threshold, flashthreshold, 
-        strokethreshold, min_pixels, debug):
+        CRF_threshold, CF_threshold, flash_threshold, 
+        stroke_threshold, min_pixels, t_window, debug):
     # Get bins of lon/lat
-    bin_lon  = np.arange(west, east, 1)
-    bin_lat  = np.arange(south, north, 1)
+    bin_lon = np.arange(west, east, 1)
+    bin_lat = np.arange(south, north, 1)
 
     # Set savefile name and group
     if ntpath.basename(entln_file).startswith('LtgFlashPortions'):
         kind = 'stroke'
-        threshold = strokethreshold
+        threshold = stroke_threshold
     else:
         kind = 'flash'
-        threshold = flashthreshold
+        threshold = flash_threshold
 
     name = 'omilnox_5pixel_entln'\
             +'_crf'+str(int(CRF_threshold*100))+'_cf'+str(int(CF_threshold*100))\
@@ -259,23 +351,25 @@ def main(behr_file, entln_file, date_str,
         if debug > 0:
             print ('    Reading swath',swath)
 
-        sdate, edate, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
-            read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold)
+        times, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
+            read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, t_window)
 
         if debug > 0:
             print ('    Reading ENTLN '+kind+'data ...')
 
-        CG_bin, IC_bin = read_entln(entln_file, sdate, edate, bin_lon, bin_lat)
-        TL_bin = CG_bin + IC_bin
+        if not np.any(times):
+            CG_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
+            IC_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
+            TL_bin = CG_bin + IC_bin
+        else:
+            CG_bin, IC_bin = read_entln(entln_file, times, t_window, lon, lat, bin_lon, bin_lat)
+            TL_bin = CG_bin + IC_bin
 
-        # Filter
-        # total flashes(pulses) per grid box and moles of LNOx per grid box
-        # Values set to zero in grid boxes where flash(pulse) or CRF threshold is not met
-        cond = (TL_bin < threshold) | (valid_pixels < min_pixels)
-        TL_bin[cond] = 0.;
-        CRF_bin[cond] = 0.; CP_bin[cond] = 0. 
-        AMFLNOx_bin[cond] = 0.; AMFLNOx_pickering_bin[cond] = 0.
-        LNOx_bin[cond] = 0.; LNOx_pickering_bin = 0.
+            # Filter_3
+            # total flashes(strokes) per grid box and moles of LNOx per grid box
+            # Values set to zero in grid boxes where flash(pulse) or CRF threshold is not met
+            cond = (TL_bin < threshold) | (valid_pixels < min_pixels)
+            TL_bin[cond], CRF_bin[cond], CP_bin[cond], AMFLNOx_bin[cond], AMFLNOx_pickering_bin[cond], LNOx_bin[cond], LNOx_pickering_bin[cond] = [0.]*7
 
         # Save data to nc file
         if debug > 0:
@@ -292,10 +386,7 @@ if __name__ == '__main__':
     args = parse_args()
 
     behr_files = [behr_dir+behr_file for behr_file in os.listdir(behr_dir) if fnmatch.fnmatch(behr_file, 'OMI_BEHR-DAILY_US_v3-0B*.hdf')]
-    # swaths     = [list(h5py.File(behr_file,'r')['Data']) for behr_file in behr_files]
-    # swaths_len = str(swaths).count(",")+1
-    # behr_files_len = len(behr_files)
-    # print (swaths_len, 'swaths for', behr_files_len, 'files')
+    behr_files.sort()
 
     for behr_file in behr_files:
         # Get date string
