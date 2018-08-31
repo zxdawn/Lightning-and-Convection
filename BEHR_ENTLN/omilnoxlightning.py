@@ -144,14 +144,14 @@ def read_entln(filename, times, t_window, lon, lat, bin_lon, bin_lat):
 
     # Get CG and IC flashes/strokes
     type = df['type'].loc[mask]
-    CG = type[type == 0 | 40]
-    IC = type[type == 1]
+    CG = type[type == 0 | 40].values
+    IC = type[type == 1].values
 
     # Get lon and lat
-    lon_CG = lon2.loc[mask][type == 0 | 40]
-    lat_CG = lat2.loc[mask][type == 0 | 40]
-    lon_IC = lon2.loc[mask][type == 1]
-    lat_IC = lat2.loc[mask][type == 1]
+    lon_CG = lon2.loc[mask][type == 0 | 40].values
+    lat_CG = lat2.loc[mask][type == 0 | 40].values
+    lon_IC = lon2.loc[mask][type == 1].values
+    lat_IC = lat2.loc[mask][type == 1].values
 
     # Accurate time, but very slow.
     # Because duration of each swath is ~ 9 min, I decide to use average overpass (above).
@@ -182,14 +182,14 @@ def read_entln(filename, times, t_window, lon, lat, bin_lon, bin_lat):
     if len(CG) == 0:
         CG_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
     else:
-        CG_bin = stats.binned_statistic_2d(lon_CG, lat_CG, CG, \
-                'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kstrokes)
+        CG_bin = stats.binned_statistic_2d(lon_CG, lat_CG, None, \
+                'count', bins=[bin_lon,bin_lat]).statistic/1000.0 #kFlashes(kstrokes)
 
     if len(IC) == 0:
         IC_bin = np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1))
     else:
-        IC_bin = stats.binned_statistic_2d(lon_IC, lat_IC, IC, \
-                'sum', bins=[bin_lon,bin_lat]).statistic/1000 #kFlashes(kstrokes)
+        IC_bin = stats.binned_statistic_2d(lon_IC, lat_IC, None, \
+                'count', bins=[bin_lon,bin_lat]).statistic/1000.0 #kFlashes(kstrokes)
 
     return CG_bin, IC_bin
 
@@ -327,11 +327,11 @@ def main(behr_file, entln_file, date_str,
 
     name = 'omilnox_5pixel_entln'\
             +'_crf'+str(int(CRF_threshold*100))+'_cf'+str(int(CF_threshold*100))\
-            +'_'+'threshold'+str(int(threshold*100))+'_'+ntpath.basename(behr_file)[-12:-8]
+            +'_'+'threshold'+str(int(threshold*1000))+'_'+ntpath.basename(behr_file)[-12:-8]
 
     # Save .nc files
     if not os.path.isfile(save_dir+name+'.nc'):
-        # Lon/lat variable is universe, just need to save one time.
+        # Lon/lat variable is universe, just need to save once.
         save_nc = Dataset(save_dir+name+'.nc', 'w', format='NETCDF4')
         global lon_center, lat_center
         lon_center = bin_lon[:-1]+0.5
