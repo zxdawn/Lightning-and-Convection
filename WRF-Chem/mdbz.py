@@ -91,19 +91,21 @@ def pmdbz(wrf_file,times,m,save_dir,drawclb):
         im = m.contourf(x,y, smooth_mdbz,10,levels=bounds,colors=colors)
 
         if drawclb:
-            clb = plt.colorbar(shrink=0.75,ticks=bounds,pad=0.05)
+            cax = fig.add_axes([0.9, 0.1, 0.02, 0.78])
+            clb = fig.colorbar(im,shrink=0.75,ticks=bounds,pad=0.05,cax=cax)
             clb.ax.tick_params(labelsize=15)
             clb.solids.set_edgecolor("face")
             for l in clb.ax.yaxis.get_ticklabels():
                 l.set_family('Arial')
+            clb.set_label('Reflectivity (dBZ)',fontsize=15)
 
         name = str(times[time])[:10] + '_' + str(times[time])[11:16] + 'UTC'
         plt.title(str(times[time])[11:13]+str(times[time])[14:16] + ' UTC WRF-Chem',{'size':28},x=0.02,y=0.91,loc='left',bbox=dict(facecolor=(1,1,1,0.5),edgecolor=(0,0,0,0)))
-        plt.savefig(save_dir+name+'.jpg',bbox_inches = 'tight')
+        plt.savefig(save_dir+name+'.png',bbox_inches = 'tight')
         
         # remove elements if times.shape[0] > 1
         if drawclb:
-            clb.remove()
+            cax.remove()
         for im in im.collections:
             im.remove()
 
