@@ -65,7 +65,7 @@ from datetime import datetime, timedelta
 
 default_vals =  {'north': 50.5, 'south': 21.5,
                 'west': -110.5, 'east': -76.5,
-                'CRF_threshold': 0.7, 'CF_threshold': 0.4,
+                'CRF_threshold': 0.7, 'CF_threshold': 0.4, 'CP_threshold': 600,
                 'flash_threshold': 2.4, 'stroke_threshold': 2.4,
                 'min_pixels': 5, 't_window': 2.4,
                 'debug': 0}
@@ -90,6 +90,7 @@ def parse_args():
     parser.add_argument('--east', default = default_vals['east'], type = float, help = 'east bound')
     parser.add_argument('--CRF_threshold', default = default_vals['CRF_threshold'], type = float, help = 'CRF_threshold')
     parser.add_argument('--CF_threshold', default = default_vals['CF_threshold'], type = float, help = 'CF_threshold')
+    parser.add_argument('--CP_threshold', default = default_vals['CP_threshold'], type = float, help = 'CP_threshold')
     parser.add_argument('--flash_threshold', default = default_vals['flash_threshold'], type = float, help = 'flash_threshold')
     parser.add_argument('--stroke_threshold', default = default_vals['stroke_threshold'], type = float, help = 'stroke_threshold')
     parser.add_argument('--min_pixels', default = default_vals['min_pixels'], type = float, help = 'min_pixels')
@@ -194,7 +195,7 @@ def read_entln(filename, times, t_window, lon, lat, bin_lon, bin_lat):
     return CG_bin, IC_bin
 
 
-def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, t_window):
+def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, CP_threshold, t_window):
     # Read BEHR variables
     T                  = f['Data/'+swath+'/Time_2D'][:]
     lon                = f['Data/'+swath+'/Longitude'][:]
@@ -215,7 +216,8 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, t_w
     # Filter_1.1: CRF and CF
     filter_CRF  = CRF >= CRF_threshold
     filter_CF   =  CF >= CF_threshold
-    T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag = check(filter_CRF & filter_CF, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
+    filter_CP   = CP <= CP_threshold
+    T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag = check(filter_CRF & filter_CF & filter_CP, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
 
     if len(T) == 0:
         valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
@@ -311,7 +313,7 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
 
 def main(behr_file, entln_file, date_str,
         north, south, west, east, 
-        CRF_threshold, CF_threshold, flash_threshold, 
+        CRF_threshold, CF_threshold, CP_threshold, flash_threshold, 
         stroke_threshold, min_pixels, t_window, debug):
     # Get bins of lon/lat
     bin_lon = np.arange(west, east, 1)
@@ -352,7 +354,7 @@ def main(behr_file, entln_file, date_str,
             print ('    Reading swath',swath)
 
         times, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
-            read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, t_window)
+            read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, CP_threshold, t_window)
 
         if debug > 0:
             print ('    Reading ENTLN '+kind+'data ...')
