@@ -15,7 +15,6 @@ from selenium import webdriver
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
-from fake_useragent import UserAgent
 
 # Set browser options
 opts = Options()
