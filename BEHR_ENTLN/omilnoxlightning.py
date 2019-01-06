@@ -10,6 +10,7 @@
 #   valid pixels >= 5 for each 1*1 grid:
 #   CRF >= CRF_threshold for each OMI pixel;
 #   CF  >= CF_threshold for each OMI pixel;
+#   CP  <= CP_threshold for each OMI pixel;
 #   Flashes >= flash_threshold for 1*1 grid t_window before OMI overpass;
 #   Strokes >= stroke_threshold for 1*1 grid t_window before OMI overpass
 
@@ -48,7 +49,7 @@
 #      float Longitude(lon=33);
 #  }
 
-# Xin Zhang <xinzhang1215@gmail.com> 17 Jul 2018
+# Xin Zhang <xinzhang1215@gmail.com> 06 Jan 2019
 
 import os
 import csv
@@ -65,16 +66,16 @@ from datetime import datetime, timedelta
 
 default_vals =  {'north': 50.5, 'south': 21.5,
                 'west': -110.5, 'east': -76.5,
-                'CRF_threshold': 0.7, 'CF_threshold': 0.4, 'CP_threshold': 600,
+                'CRF_threshold': 0.7, 'CF_threshold': 0.4, 'CP_threshold': 650,
                 'flash_threshold': 2.4, 'stroke_threshold': 2.4,
                 'min_pixels': 5, 't_window': 2.4,
                 'debug': 0}
 
 bad_flags = [2,4,19] # 2:AMF error, 4:row anomaly, 19:above-cloud
 
-behr_dir  = '/public/home/zhangxin/bigdata/BEHR_data/'
-entln_dir = '/public/home/zhangxin/bigdata/ENTLN_data/'
-save_dir  = '/public/home/zhangxin/bigdata/OMILNOx_data/'
+behr_dir  = '/chenq3/zhangxin/BEHR_data/'
+entln_dir = '/chenq3/zhangxin/ENTLN_data/'
+save_dir  = '/chenq3/zhangxin/OMILNOx_data/'
 
 def parse_args():
     '''
@@ -207,44 +208,45 @@ def read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, CP_
     LNOx               = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop'][:]
     AMFLNOx_pickering  = f['Data/'+swath+'/BEHRAMFLNOx_pickering'][:]
     LNOx_pickering     = f['Data/'+swath+'/BEHRColumnAmountLNOxTrop_pickering'][:]
+    Trop               = f['Data/'+swath+'/ColumnAmountNO2Trop'][:]
     flag               = f['Data/'+swath+'/BEHRQualityFlags'][:]
 
     # Exclude NaN value
-    T, lon, lat, CRF, CP, CF, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag  = \
-            check(T>0, T, lon, lat, CRF, CP, CF, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
+    T, lon, lat, CRF, CP, CF, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, Trop, flag  = \
+            check(T>0, T, lon, lat, CRF, CP, CF, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, Trop, flag)
 
     # Filter_1.1: CRF and CF
     filter_CRF  = CRF >= CRF_threshold
     filter_CF   =  CF >= CF_threshold
     filter_CP   = CP <= CP_threshold
-    T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag = check(filter_CRF & filter_CF & filter_CP, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
+    T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, Trop, flag = check(filter_CRF & filter_CF & filter_CP, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, Trop, flag)
 
     if len(T) == 0:
-        valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
-            (np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1)) for i in range(7))
+        valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin = \
+            (np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1)) for i in range(8))
     else:
-        # Filter_1.2-1.4: quality flags and exclude negative values
+        # Filter_1.2-1.5: quality flags and exclude negative values
         filter_quality  = [not any(x in bad_flags for x in power_find(i)) for i in flag]
         filter_positive = (LNOx>0) & (LNOx_pickering>0)
+        filter_large    = Trop<1E17
         filter_nonan    = ~np.isnan(AMFLNOx) | ~np.isnan(AMFLNOx_pickering)
 
         T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag = check(filter_quality & filter_positive & filter_nonan, T, lon, lat, CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, flag)
 
         if len(T) == 0:
-            valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
-                (np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1)) for i in range(7))
+            valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin = \
+                (np.zeros((bin_lon.shape[0]-1, bin_lat.shape[0]-1)) for i in range(8))
         else:
             # Filter_2: Number of pixels meet Filter_1 condition.
             # This will be used as condition for valid pixels
-            valid_pixels = stats.binned_statistic_2d(lon, lat, LNOx, \
-                                statistic=lambda LNOx: np.count_nonzero(LNOx), \
-                                bins=[bin_lon,bin_lat]).statistic
+            valid_pixels = stats.binned_statistic_2d(lon, lat, None, \
+                            'count', bins=[bin_lon,bin_lat]).statistic
 
             #Bin variables
-            CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin\
-                    = bin_mathod(lon, lat, bin_lon, bin_lat, 'mean', CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering)
+            CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin\
+                    = bin_mathod(lon, lat, bin_lon, bin_lat, 'mean', CRF, CP, AMFLNOx, AMFLNOx_pickering, LNOx, LNOx_pickering, Trop)
 
-    return T, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin
+    return T, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin
 
 
 def write_geo(save_nc, lon_center, lat_center):
@@ -267,7 +269,7 @@ def write_geo(save_nc, lon_center, lat_center):
 
 
 def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
-    CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, TL_bin):
+    CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin, TL_bin):
     # Create group
     swathgrp = save_nc.createGroup('/Data_fields/'+kind+'/'+date_str+'/'+swath)
 
@@ -282,6 +284,7 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
     AMFLNOx_pickering = swathgrp.createVariable('AMFLNOx_pickering', 'f4', ('lon','lat'), fill_value=0., zlib=True)
     LNOx              = swathgrp.createVariable('LNOx', 'f4', ('lon','lat'), fill_value=0., zlib=True)
     LNOx_pickering    = swathgrp.createVariable('LNOx_pickering', 'f4', ('lon','lat'), fill_value=0.,zlib=True)
+    Trop              = swathgrp.createVariable('Trop', 'f4', ('lon','lat'), fill_value=0.,zlib=True)
 
     if kind == 'flash':
         Flashes = swathgrp.createVariable('Flashes', 'f4', ('lon','lat'), fill_value=0., zlib=True)
@@ -291,6 +294,7 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
     # Set units
     LNOx.units = 'molec./cm^2'
     LNOx_pickering.units = 'molec./cm^2'
+    Trop.units = 'molec./cm^2'
 
     if kind == 'flash':
         Flashes.units = 'kiloFlashes'
@@ -304,6 +308,7 @@ def write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
     AMFLNOx_pickering[:] = AMFLNOx_pickering_bin
     LNOx[:]              = LNOx_bin
     LNOx_pickering[:]    = LNOx_pickering_bin
+    Trop[:]              = Trop_bin
 
     if kind == 'flash':
         Flashes[:] = TL_bin
@@ -353,7 +358,7 @@ def main(behr_file, entln_file, date_str,
         if debug > 0:
             print ('    Reading swath',swath)
 
-        times, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin = \
+        times, lon, lat, valid_pixels, CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin = \
             read_behr_swath(f, swath, bin_lon, bin_lat, CRF_threshold, CF_threshold, CP_threshold, t_window)
 
         if debug > 0:
@@ -370,15 +375,15 @@ def main(behr_file, entln_file, date_str,
             # Filter_3
             # total flashes(strokes) per grid box and moles of LNOx per grid box
             # Values set to zero in grid boxes where flash(pulse) or CRF threshold is not met
-            cond = (TL_bin < threshold) | (valid_pixels < min_pixels)
-            TL_bin[cond], CRF_bin[cond], CP_bin[cond], AMFLNOx_bin[cond], AMFLNOx_pickering_bin[cond], LNOx_bin[cond], LNOx_pickering_bin[cond] = [0.]*7
+            cond = (TL_bin < threshold) | (valid_pixels < min_pixels*10) # 1 pixel (24 * 13 km^2) ~ 10 grids (0.05 deg^2)
+            TL_bin[cond], CRF_bin[cond], CP_bin[cond], AMFLNOx_bin[cond], AMFLNOx_pickering_bin[cond], LNOx_bin[cond], LNOx_pickering_bin[cond], Trop_bin[cond] = [0.]*8
 
         # Save data to nc file
         if debug > 0:
             print ('    Save swath', swath)
 
         write_data(kind, date_str, save_nc, swath, lon_center, lat_center, \
-                CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, TL_bin)
+                CRF_bin, CP_bin, AMFLNOx_bin, AMFLNOx_pickering_bin, LNOx_bin, LNOx_pickering_bin, Trop_bin,TL_bin)
 
     save_nc.close()
     f.close()
