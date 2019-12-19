@@ -12,7 +12,7 @@ This repo consists of several folders:
 
 - Others
 
-  Help friends' project (airplane observation)
+  Help friends' project (airplane observation and ship information)
 
 - WRF-Chem
 
